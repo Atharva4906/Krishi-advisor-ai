@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% block title %}KrishiAdvisor AI – शेतकऱ्यांचा AI सल्लागार{% endblock %}
+
+{% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Hind:wght@400;500;600&display=swap');
+
+  .kv-home {
+    --kv-forest:  #0f3d26;
+    --kv-green:   #1b5e35;
+    --kv-leaf:    #3f9a63;
+    --kv-mint:    #e8f3ec;
+    --kv-gold:    #f2b632;
+    --kv-ink:     #14231b;
+    --kv-muted:   #5d6e64;
+    --kv-line:    #dfe8e2;
+    --kv-paper:   #ffffff;
+    --kv-shadow:  0 1px 2px rgba(15,61,38,.06), 0 8px 24px -8px rgba(15,61,38,.14);
+    --kv-shadow-lg: 0 2px 4px rgba(15,61,38,.08), 0 20px 40px -12px rgba(15,61,38,.28);
+    font-family: 'Hind', 'Baloo 2', system-ui, sans-serif;
+    color: var(--kv-ink);
+  }
+  .kv-home * { box-sizing: border-box; }
+  .kv-home :focus-visible { outline: 3px solid var(--kv-gold); outline-offset: 3px; }
+
+  /* ---------- Hero ---------- */
+  .kv-home .kv-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    padding: clamp(2rem, 5vw, 3.75rem) clamp(1.5rem, 4vw, 3.25rem);
+    margin-bottom: 1.75rem;
+    color: #fff;
+    background:
+      radial-gradient(900px 420px at 85% -10%, rgba(242,182,50,.28), transparent 60%),
+      radial-gradient(700px 400px at -10% 110%, rgba(63,154,99,.55), transparent 60%),
+      linear-gradient(145deg, var(--kv-forest) 0%, var(--kv-green) 100%);
+    box-shadow: var(--kv-shadow-lg);
+  }
+  /* crop-row texture */
+  .kv-home .kv-hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      115deg,
+      rgba(255,255,255,.045) 0 2px,
+      transparent 2px 22px
+    );
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 100%);
+            mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 100%);
+    pointer-events: none;
+  }
+  .kv-home .kv-hero > .row { position: relative; z-index: 1; }
+
+  .kv-home .kv-badge {
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-size: .82rem; font-weight: 500; letter-spacing: .02em;
+    padding: .4rem 1rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.22);
+    backdrop-filter: blur(10px);
+    margin-bottom: 1.1rem;
+  }
+  .kv-home .kv-badge::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--kv-gold);
+    box-shadow: 0 0 0 4px rgba(242,182,50,.25);
+  }
+
+  .kv-home .kv-title {
+    font-family: 'Baloo 2', cursive;
+    font-size: clamp(2.3rem, 5vw, 3.4rem);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -.01em;
+    margin-bottom: 1rem;
+  }
+  .kv-home .kv-title .kv-accent {
+    color: var(--kv-gold);
+  }
+  .kv-home .kv-subtitle {
+    display: block;
+    margin-top: .35rem;
+    font-size: clamp(1.05rem, 2vw, 1.3rem);
+    font-weight: 500;
+    color: rgba(255,255,255,.86);
+    letter-spacing: 0;
+  }
+  .kv-home .kv-lead {
+    max-width: 30rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: rgba(255,255,255,.88);
+    margin-bottom: 1.9rem;
+  }
+  .kv-home .kv-lead strong { color: #fff; font-weight: 600; }
+
+  /* ---------- Buttons ---------- */
+  .kv-home .kv-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: .5rem;
+    padding: .85rem 1.9rem;
+    border-radius: 14px;
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.05rem; font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+  .kv-home .kv-btn-primary {
+    background: linear-gradient(180deg, #ffc94d 0%, var(--kv-gold) 100%);
+    color: #3a2a00;
+    box-shadow: 0 8px 20px -6px rgba(242,182,50,.7), inset 0 1px 0 rgba(255,255,255,.55);
+  }
+  .kv-home .kv-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -6px rgba(242,182,50,.8), inset 0 1px 0 rgba(255,255,255,.55); color: #3a2a00; }
+  .kv-home .kv-btn-ghost {
+    background: rgba(255,255,255,.1);
+    color: #fff;
+    border-color: rgba(255,255,255,.35);
+    backdrop-filter: blur(10px);
+  }
+  .kv-home .kv-btn-ghost:hover { background: rgba(255,255,255,.2); color: #fff; transform: translateY(-2px); }
+
+  /* ---------- Hero tiles ---------- */
+  .kv-home .kv-tiles {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .85rem;
+    max-width: 300px; margin: auto;
+  }
+  .kv-home .kv-tile {
+    background: linear-gradient(160deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 18px;
+    padding: 1.6rem 1rem;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 10px 24px -10px rgba(0,0,0,.35);
+  }
+  .kv-home .kv-tile:nth-child(2) { transform: translateY(14px); }
+  .kv-home .kv-tile:nth-child(4) { transform: translateY(14px); }
+  .kv-home .kv-tile div {
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.05rem; font-weight: 600;
+  }
+
+  /* ---------- Stats strip ---------- */
+  .kv-home .kv-stats {
+    background: var(--kv-paper);
+    border: 1px solid var(--kv-line);
+    border-radius: 22px;
+    box-shadow: var(--kv-shadow);
+    padding: .5rem 0;
+    margin-bottom: 1.75rem !important;
+  }
+  .kv-home .kv-stats > [class*="col-"] { padding-top: .75rem; padding-bottom: .75rem; }
+  .kv-home .kv-stats .stat-card {
+    background: transparent; border: 0; box-shadow: none;
+    text-align: center; padding: .25rem .5rem;
+  }
+  .kv-home .kv-stats > [class*="col-"] + [class*="col-"] .stat-card { border-left: 1px solid var(--kv-line); }
+  @media (max-width: 767.98px) {
+    .kv-home .kv-stats > [class*="col-"]:nth-child(3) .stat-card { border-left: 0; }
+  }
+  .kv-home .stat-val {
+    font-family: 'Baloo 2', cursive;
+    font-size: 2.1rem; font-weight: 800; line-height: 1.1;
+  }
+  .kv-home .stat-lbl {
+    font-size: .85rem; font-weight: 500;
+    color: var(--kv-muted);
+    margin-top: .15rem;
+  }
+
+  /* ---------- Feature cards ---------- */
+  .kv-home .kv-feature {
+    position: relative;
+    height: 100%;
+    background: var(--kv-paper);
+    border: 1px solid var(--kv-line);
+    border-radius: 20px;
+    box-shadow: var(--kv-shadow);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .kv-home .kv-feature::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: var(--accent, var(--kv-green));
+  }
+  .kv-home .kv-feature::after {
+    content: ""; position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%;
+    background: var(--accent, var(--kv-green));
+    opacity: .07;
+    transition: opacity .22s ease, transform .22s ease;
+  }
+  .kv-home a:hover > .kv-feature {
+    transform: translateY(-4px);
+    box-shadow: var(--kv-shadow-lg);
+    border-color: transparent;
+  }
+  .kv-home a:hover > .kv-feature::after { opacity: .14; transform: scale(1.15); }
+  .kv-home .kv-feature .k-card-body { padding: 1.5rem 1.6rem 1.5rem 1.9rem; position: relative; z-index: 1; }
+  .kv-home .kv-feature-title {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700; font-size: 1.2rem; line-height: 1.3;
+    color: var(--kv-ink);
+  }
+  .kv-home .kv-feature-desc {
+    font-size: .95rem; line-height: 1.6;
+    color: var(--kv-muted);
+    margin-top: .3rem;
+  }
+
+  /* ---------- Crops panel ---------- */
+  .kv-home .kv-crops {
+    background: var(--kv-paper);
+    border: 1px solid var(--kv-line);
+    border-radius: 24px;
+    box-shadow: var(--kv-shadow);
+    overflow: hidden;
+  }
+  .kv-home .kv-crops .k-card-header {
+    padding: 1.1rem 1.6rem;
+    background: linear-gradient(90deg, var(--kv-mint), #f6faf7);
+    border-bottom: 1px solid var(--kv-line);
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700; font-size: 1.1rem;
+    color: var(--kv-green);
+  }
+  .kv-home .kv-crops .k-card-body { padding: 1.5rem 1.6rem 1.7rem; }
+  .kv-home .kv-chips { display: flex; flex-wrap: wrap; gap: .65rem; }
+  .kv-home .kv-chip {
+    display: inline-flex; align-items: center;
+    padding: .5rem 1.15rem;
+    border-radius: 999px;
+    background: var(--kv-mint);
+    border: 1.5px solid #cfe3d6;
+    color: var(--kv-green);
+    font-size: .95rem; font-weight: 600;
+    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+  }
+  .kv-home a:hover > .kv-chip {
+    background: var(--kv-green);
+    border-color: var(--kv-green);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -6px rgba(27,94,53,.5);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kv-home * { transition: none !important; }
+    .kv-home .kv-tile:nth-child(2), .kv-home .kv-tile:nth-child(4) { transform: none; }
+  }
+</style>
+
+<div class="kv-home">
+
+<!-- Hero Section -->
+<div class="hero-section kv-hero fade-in">
+
+  <div class="row align-items-center">
+    <div class="col-md-7">
+      <div class="kv-badge">
+        AI-Powered • Maharashtra Farmers
+      </div>
+      <h1 class="kv-title">
+        <span class="kv-accent">कृषि</span>Advisor AI<br/>
+        <span class="kv-subtitle">शेतकऱ्यांचा स्मार्ट नफा सल्लागार</span>
+      </h1>
+      <p class="kv-lead">
+        तुमचे पीक कधी विकायचे? साठवायचे? प्रक्रिया करायची?
+        <strong>AI तुम्हाला सांगेल — सर्वाधिक नफ्यासाठी.</strong>
+      </p>
+      <div class="d-flex gap-3 flex-wrap">
+        <a href="/advisor" class="btn-krishi btn-amber kv-btn kv-btn-primary text-decoration-none">
+          <span data-mr="AI सल्ला घ्या" data-en="Get AI Advice">AI सल्ला घ्या</span>
+        </a>
+        {% if not session.user_id %}
+        <a href="/register" class="btn-krishi kv-btn kv-btn-ghost text-decoration-none">
+          <span data-mr="मोफत नोंदणी" data-en="Free Register">मोफत नोंदणी</span>
+        </a>
+        {% else %}
+        <a href="/dashboard" class="btn-krishi kv-btn kv-btn-ghost text-decoration-none">
+          <span data-mr="डॅशबोर्ड" data-en="Dashboard">डॅशबोर्ड</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-md-5 d-none d-md-block text-center mt-3 mt-md-0">
+      <div class="kv-tiles">
+        {% set highlights = [('साठवण','Storage'),('नफा','Profit'),('अंदाज','Forecast'),('धोका','Risk')] %}
+        {% for mr,en in highlights %}
+        <div class="kv-tile">
+          <div data-mr="{{ mr }}" data-en="{{ en }}">{{ mr }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row g-0 mb-4 fade-in kv-stats">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div>
+        <div class="stat-val" style="color:var(--green);">30+</div>
+        <div class="stat-lbl" data-mr="पिके उपलब्ध" data-en="Crops Available">पिके उपलब्ध</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div>
+        <div class="stat-val" style="color:var(--amber);">AI</div>
+        <div class="stat-lbl" data-mr="ML अंदाज" data-en="ML Predictions">ML अंदाज</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div>
+        <div class="stat-val" style="color:var(--blue);">4</div>
+        <div class="stat-lbl" data-mr="महिन्यांचा अंदाज" data-en="Months Forecast">महिन्यांचा अंदाज</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div>
+        <div class="stat-val" style="color:var(--red);">मोफत</div>
+        <div class="stat-lbl" data-mr="सर्व शेतकऱ्यांसाठी" data-en="For All Farmers">सर्व शेतकऱ्यांसाठी</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Features Grid -->
+<div class="row g-3 mb-4">
+  {% set features = [
+    ('#1b5e35','AI किंमत अंदाज','AI Price Prediction','मशीन लर्निंग वापरून पुढील ४ महिन्यांचा भाव अंदाज','ML-based price forecast for next 4 months','/advisor'),
+    ('#1565c0','माल साठा व्यवस्थापन','Stock Management','तुमचा सर्व माल साठा ट्रॅक करा एकाच ठिकाणी','Track all your crop inventory in one place','/stock'),
+    ('#e67e22','विक्री इतिहास','Sales History','प्रत्येक विक्रीची नोंद आणि नफ्याचे विश्लेषण','Record every sale and analyze profits','/sales'),
+    ('#6d28d9','मराठी अनुवाद','Marathi Translation','सर्व शब्दांचे मराठी अनुवाद तात्काळ','Instant Marathi translation of all terms','#'),
+  ] %}
+  {% for color,mr_title,en_title,mr_desc,en_desc,link in features %}
+  <div class="col-md-6">
+    <a href="{{ link }}" class="text-decoration-none d-block h-100">
+      <div class="k-card kv-feature" style="--accent:{{ color }};">
+        <div class="k-card-body d-flex gap-3 align-items-start">
+          <div>
+            <div class="kv-feature-title"
+                 data-mr="{{ mr_title }}" data-en="{{ en_title }}">{{ mr_title }}</div>
+            <div class="kv-feature-desc"
+                 data-mr="{{ mr_desc }}" data-en="{{ en_desc }}">{{ mr_desc }}</div>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Crops Quick Access -->
+<div class="k-card kv-crops">
+  <div class="k-card-header pale">
+    <span data-mr="लोकप्रिय पिके — थेट AI सल्ला घ्या" data-en="Popular Crops — Get AI Advice">लोकप्रिय पिके — थेट AI सल्ला घ्या</span>
+  </div>
+  <div class="k-card-body">
+    <div class="kv-chips">
+      {% set popular = [('onion','कांदा'),('mango','आंबा'),('tomato','टोमॅटो'),
+                        ('potato','बटाटा'),('grapes','द्राक्षे'),('banana','केळी'),
+                        ('orange','संत्रा'),('wheat','गहू'),('soybean','सोयाबीन'),
+                        ('chilli','मिरची'),('garlic','लसूण'),('pomegranate','डाळिंब')] %}
+      {% for crop_en, crop_mr in popular %}
+      <a href="/advisor?crop={{ crop_en }}" class="text-decoration-none">
+        <div class="kv-chip">
+          {{ crop_mr }}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+</div>
+{% endblock %}
