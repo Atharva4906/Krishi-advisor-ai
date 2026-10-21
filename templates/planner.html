@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}शेती नियोजन – KrishiAdvisor{% endblock %}
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div>
+    <h1 data-mr="शेती नियोजन" data-en="Farm Planner">शेती नियोजन</h1>
+    <div class="subtitle" data-mr="पीक चक्र, सिंचन आणि खर्च एका ठिकाणी व्यवस्थापित करा" data-en="Manage crop cycles, irrigation and expenses in one place">पीक चक्र, सिंचन आणि खर्च एका ठिकाणी व्यवस्थापित करा</div>
+  </div>
+  <a href="/advisor" class="btn-krishi btn-amber text-decoration-none" data-mr="AI भाव अंदाज" data-en="AI Price Forecast">AI भाव अंदाज</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="k-card">
+      <div class="k-card-header green" data-mr="नवीन पीक नियोजन" data-en="New Crop Plan">नवीन पीक नियोजन</div>
+      <div class="k-card-body">
+        <form method="POST">
+          <label class="form-label" data-mr="पीक" data-en="Crop">पीक</label>
+          <select class="form-select mb-3" name="crop_id" required>
+            <option value="">पीक निवडा / Select crop</option>
+            {% for crop in crops %}
+            <option value="{{ crop.id }}">{{ crop.name_mr or crop.name_en }} – {{ crop.name_en|capitalize }}</option>
+            {% endfor %}
+          </select>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label" data-mr="क्षेत्र (एकर)" data-en="Area (acres)">क्षेत्र (एकर)</label>
+              <input class="form-control" type="number" name="area_acres" min="0.1" step="0.1" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label" data-mr="मातीचा प्रकार" data-en="Soil type">मातीचा प्रकार</label>
+              <select class="form-select" name="soil_type">
+                <option>काळी माती / Black</option>
+                <option>लाल माती / Red</option>
+                <option>गाळाची माती / Alluvial</option>
+                <option>इतर / Other</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label" data-mr="पेरणी तारीख" data-en="Sowing date">पेरणी तारीख</label>
+              <input class="form-control" type="date" name="sowing_date">
+            </div>
+            <div class="col-6">
+              <label class="form-label" data-mr="अपेक्षित कापणी" data-en="Expected harvest">अपेक्षित कापणी</label>
+              <input class="form-control" type="date" name="expected_harvest">
+            </div>
+          </div>
+          <label class="form-label mt-3" data-mr="सिंचन योजना" data-en="Irrigation plan">सिंचन योजना</label>
+          <textarea class="form-control" name="irrigation_plan" rows="2" placeholder="उदा. ठिबक – दर ३ दिवसांनी"></textarea>
+          <label class="form-label mt-3" data-mr="नोट्स / कामांची यादी" data-en="Notes / task list">नोट्स / कामांची यादी</label>
+          <textarea class="form-control" name="notes" rows="2" placeholder="खते, फवारणी किंवा इतर कामे"></textarea>
+          <button class="btn-krishi w-100 mt-3" type="submit" data-mr="नियोजन जतन करा" data-en="Save Crop Plan">नियोजन जतन करा</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="k-card mt-4">
+      <div class="k-card-header amber" data-mr="खर्च नोंदवा" data-en="Record Expense">खर्च नोंदवा</div>
+      <div class="k-card-body">
+        <form action="/planner/expense" method="POST">
+          <label class="form-label" data-mr="खर्चाचा प्रकार" data-en="Expense category">खर्चाचा प्रकार</label>
+          <select class="form-select mb-3" name="category">
+            <option>बियाणे / Seeds</option><option>खते / Fertilizer</option>
+            <option>मजुरी / Labour</option><option>सिंचन / Irrigation</option>
+            <option>फवारणी / Crop protection</option><option>वाहतूक / Transport</option>
+            <option>इतर / Other</option>
+          </select>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label">रक्कम / Amount (₹)</label><input class="form-control" type="number" name="amount" min="1" step="0.01" required></div>
+            <div class="col-6"><label class="form-label">तारीख / Date</label><input class="form-control" type="date" name="expense_date"></div>
+          </div>
+          <label class="form-label mt-3">पीक नियोजन / Crop plan</label>
+          <select class="form-select" name="plan_id">
+            <option value="">सर्वसाधारण खर्च / General</option>
+            {% for plan in plans %}<option value="{{ plan.id }}">{{ plan.name_mr or plan.name_en }} – {{ plan.area_acres }} acre</option>{% endfor %}
+          </select>
+          <input class="form-control mt-3" name="notes" placeholder="नोट्स / Notes">
+          <button class="btn-krishi btn-amber w-100 mt-3" type="submit" data-mr="खर्च जतन करा" data-en="Save Expense">खर्च जतन करा</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="k-card mb-4">
+      <div class="k-card-header pale d-flex justify-content-between">
+        <span data-mr="एकूण नियोजित खर्च" data-en="Total Planned Expenses">एकूण नियोजित खर्च</span>
+        <strong style="color:var(--red);">₹{{ '{:,.0f}'.format(total_expenses or 0) }}</strong>
+      </div>
+      <div class="k-card-body">
+        {% if plans %}
+        <div class="row g-3">
+          {% for plan in plans %}
+          <div class="col-md-6">
+            <div style="border:1px solid var(--border);border-radius:12px;padding:1rem;height:100%;">
+              <div style="font-weight:700;font-size:1.05rem;">{{ plan.name_mr or plan.name_en }}</div>
+              <div style="font-size:.8rem;color:var(--muted);margin:.35rem 0;">{{ plan.area_acres }} acre · {{ plan.soil_type }}</div>
+              <div style="font-size:.85rem;"><strong>पेरणी:</strong> {{ plan.sowing_date or 'निश्चित नाही' }}</div>
+              <div style="font-size:.85rem;"><strong>कापणी:</strong> {{ plan.expected_harvest or 'निश्चित नाही' }}</div>
+              {% if plan.irrigation_plan %}<div style="font-size:.82rem;margin-top:.5rem;color:var(--green);">{{ plan.irrigation_plan }}</div>{% endif %}
+              {% if plan.notes %}<div style="font-size:.82rem;margin-top:.35rem;color:var(--muted);">{{ plan.notes }}</div>{% endif %}
+              <a href="/advisor?crop={{ plan.name_en }}" class="btn btn-sm btn-outline-success mt-3" data-mr="या पिकाचा AI अंदाज" data-en="AI forecast for this crop">या पिकाचा AI अंदाज</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:2rem;text-align:center;color:var(--muted);" data-mr="अजून कोणतेही पीक नियोजन नाही." data-en="No crop plans yet.">अजून कोणतेही पीक नियोजन नाही.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="k-card">
+      <div class="k-card-header blue" data-mr="अलीकडील खर्च" data-en="Recent Expenses">अलीकडील खर्च</div>
+      <div style="overflow-x:auto;">
+        <table class="k-table">
+          <thead><tr><th>प्रकार / Category</th><th>पीक / Crop</th><th>तारीख / Date</th><th>रक्कम / Amount</th></tr></thead>
+          <tbody>
+          {% for expense in expenses %}
+          <tr><td>{{ expense.category }}</td><td>{{ expense.name_mr or 'General' }}</td><td>{{ expense.expense_date or expense.created_at[:10] }}</td><td style="font-weight:700;">₹{{ '{:,.0f}'.format(expense.amount) }}</td></tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:var(--muted);">अजून खर्च नोंदवलेला नाही / No expenses recorded</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

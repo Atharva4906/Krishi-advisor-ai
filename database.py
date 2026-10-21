@@ -104,6 +104,31 @@ def init_db():
         created_at      TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
 
+    c.execute('''CREATE TABLE IF NOT EXISTS farm_plans (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id             INTEGER REFERENCES users(id),
+        crop_id             INTEGER REFERENCES crops(id),
+        area_acres          REAL NOT NULL,
+        sowing_date         TEXT,
+        expected_harvest    TEXT,
+        irrigation_plan     TEXT,
+        soil_type           TEXT,
+        notes               TEXT,
+        status              TEXT DEFAULT 'planned',
+        created_at          TEXT DEFAULT CURRENT_TIMESTAMP
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS farm_expenses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER REFERENCES users(id),
+        plan_id     INTEGER REFERENCES farm_plans(id),
+        category    TEXT NOT NULL,
+        amount      REAL NOT NULL,
+        expense_date TEXT,
+        notes       TEXT,
+        created_at  TEXT DEFAULT CURRENT_TIMESTAMP
+    )''')
+
     # ── Seed crop master data ──────────────────────────────────────────────────
     crops_seed = [
         ('onion','कांदा','vegetable'),('mango','आंबा','fruit'),

@@ -35,6 +35,12 @@ Indian farmers lose **30–40% of potential income** due to poor timing of crop 
 - 🦠 **Crop-Specific Spoilage Model** - Real post-harvest spoilage rates per crop (ICAR/NHB data), compound decay, and storage-type awareness (home / warehouse / cold chain)
 - 🌐 **Bilingual UI** - Full Marathi + English interface throughout
 - 🧑‍🌾 **Farm Management** - Stock tracking, sales history, profit dashboard
+- 🔔 **Farmer Updates** - Seasonal outlook, low-stock alerts, harvest reminders, and quick actions
+- 🗂️ **Saved AI Analyses** - Reopen previous recommendations and compare 2–3 saved analyses
+- 🌱 **Farm Planner** - Plan crop cycles, acreage, soil, sowing, harvest, irrigation, and farm tasks
+- 💰 **Expense Tracker** - Record seed, fertilizer, labour, irrigation, crop protection, and transport costs
+- 💬 **AI Farm Help** - Ask crop-care, irrigation, harvest-preparation, and cost questions in Marathi or English
+- 📅 **AI 7-Day Action Plan** - Get immediate actions, a one-week plan, and safety verification guidance
 - 🔌 **REST API** - `/api/predict` endpoint for integration with mobile apps or WhatsApp bots
 
 ---

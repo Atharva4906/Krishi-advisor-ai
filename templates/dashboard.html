@@ -30,6 +30,14 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div>
+        <div class="stat-val" style="color:var(--red);">₹{{ '{:,.0f}'.format(total_expenses) }}</div>
+        <div class="stat-lbl" data-mr="शेती खर्च" data-en="Farm Expenses">शेती खर्च</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div>
         <div class="stat-val" style="color:var(--blue);">{{ active_stock }}</div>
         <div class="stat-lbl" data-mr="सक्रिय साठा" data-en="Active Stock">सक्रिय साठा</div>
       </div>
@@ -54,6 +62,76 @@
 </div>
 
 <div class="row g-4">
+  <div class="col-12">
+    <div class="k-card">
+      <div class="k-card-header green">
+        <span data-mr="आजचे शेतकरी अपडेट्स" data-en="Today's Farm Updates">आजचे शेतकरी अपडेट्स</span>
+      </div>
+      <div class="k-card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div style="background:var(--green-pale);border-radius:12px;padding:1rem;height:100%;">
+              <div style="font-weight:700;color:var(--green);" data-mr="हंगामी अंदाज" data-en="Seasonal Outlook">हंगामी अंदाज</div>
+              <div style="font-size:.9rem;margin-top:.45rem;">{{ seasonal_outlook[1] }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div style="background:#fff8e1;border-radius:12px;padding:1rem;height:100%;">
+              <div style="font-weight:700;color:#9a6700;" data-mr="सूचना" data-en="Alerts">सूचना</div>
+              {% if alerts %}
+              {% for alert in alerts[:2] %}
+              <div style="font-size:.85rem;margin-top:.45rem;"><strong>{{ alert.title }}</strong><br/>{{ alert.text }}</div>
+              {% endfor %}
+              {% else %}
+              <div style="font-size:.85rem;margin-top:.45rem;" data-mr="सध्या कोणतीही तातडीची सूचना नाही." data-en="No urgent alerts right now.">सध्या कोणतीही तातडीची सूचना नाही.</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div style="background:#eef2ff;border-radius:12px;padding:1rem;height:100%;">
+              <div style="font-weight:700;color:#4338ca;" data-mr="आजची कृती" data-en="Quick Actions">आजची कृती</div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <a href="/advisor" class="btn-krishi" style="font-size:.78rem;padding:.4rem .7rem;" data-mr="AI अंदाज" data-en="AI Forecast">AI अंदाज</a>
+                <a href="/stock" class="btn-krishi btn-amber" style="font-size:.78rem;padding:.4rem .7rem;" data-mr="साठा जोडा" data-en="Add Stock">साठा जोडा</a>
+                <a href="/sales" class="btn-krishi" style="font-size:.78rem;padding:.4rem .7rem;" data-mr="विक्री पहा" data-en="View Sales">विक्री पहा</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% if reminders %}
+        <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:.8rem;">
+          <div style="font-weight:700;color:var(--text);" data-mr="आगामी स्मरणपत्रे" data-en="Reminders">आगामी स्मरणपत्रे</div>
+          <div class="row g-2 mt-1">
+            {% for reminder in reminders[:3] %}
+            <div class="col-md-4">
+              <a href="{{ reminder.link }}" class="text-decoration-none" style="display:block;background:var(--bg);border-radius:8px;padding:.6rem;color:var(--text);">
+                <strong style="font-size:.85rem;">{{ reminder.title }}</strong>
+                <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem;">{{ reminder.text }}</div>
+              </a>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if upcoming_plans %}
+        <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:.8rem;">
+          <div style="font-weight:700;" data-mr="आगामी पीक नियोजन" data-en="Upcoming Crop Plans">आगामी पीक नियोजन</div>
+          <div class="row g-2 mt-1">
+            {% for plan in upcoming_plans %}
+            <div class="col-md-3">
+              <div style="background:var(--bg);border-radius:8px;padding:.6rem;">
+                <strong style="font-size:.85rem;">{{ plan.name_mr or plan.name_en }}</strong>
+                <div style="font-size:.76rem;color:var(--muted);">{{ plan.expected_harvest or plan.sowing_date or 'Date not set' }}</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
   <!-- Monthly Profit Chart -->
   <div class="col-md-7">
     <div class="k-card">

@@ -1,8 +1,12 @@
 __pycache__/
+frontend/node_modules/
+frontend/dist/
 *.pyc
 *.pyo
 *.pyd
 .env
+.env.example
+!.env.example
 *.zip
 uploads/*
 !uploads/.gitkeep

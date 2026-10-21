@@ -1,15 +1,17 @@
 # app.py — KrishiAdvisor V2
 # Multi-page Flask application for Indian farmers
 
-import os, json, hashlib, datetime
+import os, json, hashlib, datetime, urllib.error, urllib.request
 from functools import wraps
+from dotenv import load_dotenv
 from flask import (Flask, render_template, request, jsonify,
                    redirect, url_for, session, flash, g)
 from database import get_db, init_db, seed_price_history
 from ai_engine import full_analysis, predict_prices
 
+load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'krishi-v2-secret-2024-maharashtra'
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'development-only-secret')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Initialize DB on startup (required for Vercel)
@@ -205,6 +207,16 @@ def dashboard():
         WHERE st.user_id=? AND st.status="stored"
         ORDER BY st.created_at DESC LIMIT 5
     ''', (uid,)).fetchall()
+    upcoming_plans = conn.execute('''
+        SELECT fp.*, c.name_en, c.name_mr
+        FROM farm_plans fp JOIN crops c ON fp.crop_id=c.id
+        WHERE fp.user_id=? AND fp.status='planned'
+        ORDER BY COALESCE(fp.expected_harvest, fp.sowing_date) ASC LIMIT 4
+    ''', (uid,)).fetchall()
+    total_expenses = conn.execute(
+        'SELECT COALESCE(SUM(amount),0) AS total FROM farm_expenses WHERE user_id=?',
+        (uid,)
+    ).fetchone()['total']
 
     conn.close()
 
@@ -212,6 +224,43 @@ def dashboard():
     recent_sales = [dict(r) for r in recent_sales]
     monthly      = [{'mo': r['mo'], 'p': float(r['p'] or 0)} for r in monthly]
     stocks       = [dict(r) for r in stocks]
+    upcoming_plans = [dict(r) for r in upcoming_plans]
+    today = datetime.date.today()
+    alerts = []
+    reminders = []
+    for stock_item in stocks:
+        quantity = float(stock_item.get('quantity_kg') or 0)
+        if quantity < 50:
+            alerts.append({
+                'title': f"कमी साठा: {stock_item['name_mr'] or stock_item['name_en']}",
+                'text': f"फक्त {quantity:g} kg शिल्लक आहे. / Only {quantity:g} kg remains.",
+                'level': 'warning'
+            })
+        harvest_date = stock_item.get('harvest_date')
+        if harvest_date:
+            try:
+                harvest = datetime.date.fromisoformat(harvest_date)
+                age_days = (today - harvest).days
+                if age_days >= 30:
+                    reminders.append({
+                        'title': f"साठा तपासा: {stock_item['name_mr'] or stock_item['name_en']}",
+                        'text': f"कापणीला {age_days} दिवस झाले. विक्री किंवा AI सल्ला तपासा.",
+                        'link': f"/advisor?crop={stock_item['name_en']}"
+                    })
+            except ValueError:
+                pass
+    if not stocks:
+        reminders.append({
+            'title': 'पहिला साठा जोडा / Add your first stock',
+            'text': 'साठा जोडल्यावर तुम्हाला वैयक्तिक विक्री आणि AI सूचना मिळतील.',
+            'link': '/stock'
+        })
+    month = today.month
+    seasonal = [
+        ('हंगामी नियोजन', 'पावसाळ्यापूर्वी साठवणूक जागा आणि वाहतूक खर्च तपासा.'),
+        ('हंगामी नियोजन', 'साठवलेला माल नियमित तपासा आणि बाजारभावाशी तुलना करा.'),
+        ('हंगामी नियोजन', 'विक्रीपूर्वी पुढील ४ महिन्यांचा AI भाव अंदाज पहा.')
+    ][(month - 1) % 3]
 
     return render_template('dashboard.html',
         user=get_current_user(),
@@ -221,7 +270,12 @@ def dashboard():
         pred_count=int(pred_count or 0),
         recent_sales=recent_sales,
         monthly=monthly,
-        stocks=stocks
+        stocks=stocks,
+        upcoming_plans=upcoming_plans,
+        total_expenses=round(float(total_expenses or 0), 2),
+        alerts=alerts,
+        reminders=reminders,
+        seasonal_outlook=seasonal
     )
 
 
@@ -243,6 +297,95 @@ def stock():
     conn.close()
     return render_template('stock.html', user=get_current_user(),
                            stocks=stocks, crops=crops)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  FARM PLANNER AND EXPENSES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/planner', methods=['GET', 'POST'])
+@login_required
+def planner():
+    uid = session['user_id']
+    if request.method == 'POST':
+        try:
+            crop_id = int(request.form.get('crop_id') or 0)
+            area = float(request.form.get('area_acres') or 0)
+            if crop_id <= 0 or area <= 0:
+                raise ValueError('Crop and positive area are required')
+            conn = get_db()
+            conn.execute('''
+                INSERT INTO farm_plans
+                (user_id,crop_id,area_acres,sowing_date,expected_harvest,
+                 irrigation_plan,soil_type,notes)
+                VALUES (?,?,?,?,?,?,?,?)
+            ''', (uid, crop_id, area, request.form.get('sowing_date', '').strip(),
+                  request.form.get('expected_harvest', '').strip(),
+                  request.form.get('irrigation_plan', '').strip(),
+                  request.form.get('soil_type', '').strip(),
+                  request.form.get('notes', '').strip()))
+            conn.commit()
+            conn.close()
+            flash('पीक नियोजन जतन झाले / Crop plan saved', 'success')
+        except (ValueError, TypeError) as e:
+            flash(f'नियोजन तपासा / Check crop plan: {e}', 'danger')
+        return redirect(url_for('planner'))
+
+    conn = get_db()
+    plans = conn.execute('''
+        SELECT fp.*, c.name_en, c.name_mr FROM farm_plans fp
+        JOIN crops c ON fp.crop_id=c.id WHERE fp.user_id=?
+        ORDER BY COALESCE(fp.expected_harvest, fp.sowing_date) ASC
+    ''', (uid,)).fetchall()
+    expenses = conn.execute('''
+        SELECT fe.*, fp.id AS plan_number, c.name_mr, c.name_en
+        FROM farm_expenses fe
+        LEFT JOIN farm_plans fp ON fe.plan_id=fp.id
+        LEFT JOIN crops c ON fp.crop_id=c.id
+        WHERE fe.user_id=? ORDER BY COALESCE(fe.expense_date, fe.created_at) DESC LIMIT 30
+    ''', (uid,)).fetchall()
+    total_expenses = conn.execute(
+        'SELECT COALESCE(SUM(amount),0) AS total FROM farm_expenses WHERE user_id=?',
+        (uid,)
+    ).fetchone()['total']
+    conn.close()
+    return render_template('planner.html', user=get_current_user(),
+                           crops=get_all_crops(), plans=plans,
+                           expenses=expenses, total_expenses=total_expenses)
+
+
+@app.route('/planner/expense', methods=['POST'])
+@login_required
+def add_expense():
+    try:
+        amount = float(request.form.get('amount') or 0)
+        if amount <= 0:
+            raise ValueError('Amount must be greater than zero')
+        plan_id = request.form.get('plan_id') or None
+        conn = get_db()
+        if plan_id:
+            owned = conn.execute(
+                'SELECT id FROM farm_plans WHERE id=? AND user_id=?',
+                (int(plan_id), session['user_id'])
+            ).fetchone()
+            if not owned:
+                conn.close()
+                flash('Invalid crop plan', 'danger')
+                return redirect(url_for('planner'))
+        conn.execute('''
+            INSERT INTO farm_expenses
+            (user_id,plan_id,category,amount,expense_date,notes)
+            VALUES (?,?,?,?,?,?)
+        ''', (session['user_id'], plan_id,
+              request.form.get('category', 'Other').strip() or 'Other',
+              amount, request.form.get('expense_date', '').strip(),
+              request.form.get('notes', '').strip()))
+        conn.commit()
+        conn.close()
+        flash('खर्च नोंदवला / Expense recorded', 'success')
+    except (ValueError, TypeError) as e:
+        flash(f'खर्च तपासा / Check expense: {e}', 'danger')
+    return redirect(url_for('planner'))
 
 
 @app.route('/stock/add', methods=['POST'])
@@ -363,7 +506,37 @@ def sales():
 @app.route('/advisor')
 def advisor():
     crops = get_all_crops()
-    return render_template('advisor.html', user=get_current_user(), crops=crops)
+    history = []
+    if 'user_id' in session:
+        conn = get_db()
+        history = conn.execute('''
+            SELECT p.id, p.quantity, p.current_price, p.best_strategy,
+                   p.expected_profit, p.risk_level, p.result_json, p.created_at,
+                   c.name_en, c.name_mr
+            FROM predictions p
+            JOIN crops c ON p.crop_id=c.id
+            WHERE p.user_id=? ORDER BY p.created_at DESC LIMIT 8
+        ''', (session['user_id'],)).fetchall()
+        conn.close()
+        history = [dict(row) for row in history]
+    return render_template('advisor.html', user=get_current_user(),
+                           crops=crops, history=history)
+
+
+@app.route('/api/predictions/<int:prediction_id>')
+@login_required
+def api_prediction(prediction_id):
+    conn = get_db()
+    row = conn.execute('''
+        SELECT result_json FROM predictions WHERE id=? AND user_id=?
+    ''', (prediction_id, session['user_id'])).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Analysis not found'}), 404
+    try:
+        return jsonify(json.loads(row['result_json']))
+    except (TypeError, json.JSONDecodeError):
+        return jsonify({'error': 'Saved analysis is invalid'}), 500
 
 
 @app.route('/api/predict', methods=['POST'])
@@ -422,10 +595,299 @@ def api_predict():
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/api/ai-advice', methods=['POST'])
+@app.route('/api/groq-advice', methods=['POST'])
+def api_groq_advice():
+    """Generate farmer-friendly advice using Groq without exposing the API key."""
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'AI provider is not configured on the Flask server'}), 503
+
+    data = request.get_json() or {}
+    required = ('crop_name', 'quantity', 'current_price', 'analysis')
+    if any(key not in data for key in required):
+        return jsonify({'error': 'crop_name, quantity, current_price and analysis are required'}), 400
+
+    prompt = f"""
+You are KrishiAdvisor, a careful agricultural assistant for a Maharashtra farmer.
+Give practical, concise advice in Marathi first, followed by English.
+Do not invent live weather or market data. Clearly say when the farmer should
+verify local mandi prices, an agriculture officer, or a soil expert.
+
+Crop: {data['crop_name']}
+Quantity: {data['quantity']} kg
+Current price: ₹{data['current_price']}/kg
+AI numerical analysis: {json.dumps(data['analysis'], ensure_ascii=False)}
+
+Return exactly these sections:
+1. निर्णय / Decision
+2. पुढील 3 कृती / Next 3 actions
+3. जोखीम / Risks
+4. स्थानिक पडताळणी / Local verification
+"""
+    payload = json.dumps({
+        'model': os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'messages': [
+            {'role': 'system', 'content': 'You provide safe, evidence-aware farm guidance.'},
+            {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 0.3,
+        'max_tokens': 700
+    }).encode('utf-8')
+    req = urllib.request.Request(
+        'https://api.groq.com/openai/v1/chat/completions',
+        data=payload,
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+        advice = result['choices'][0]['message']['content']
+        return jsonify({'advice': advice, 'model': result.get('model')})
+    except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError) as exc:
+        return jsonify({'error': f'Groq advice request failed: {exc}'}), 502
+
+
+@app.route('/api/ai-farm-help', methods=['POST'])
+def api_ai_farm_help():
+    """Answer a bounded farmer question without exposing the AI provider key."""
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'AI provider is not configured on the Flask server'}), 503
+
+    data = request.get_json() or {}
+    question = str(data.get('question') or '').strip()
+    if not question:
+        return jsonify({'error': 'A farmer question is required'}), 400
+    if len(question) > 1200:
+        return jsonify({'error': 'Question must be 1200 characters or less'}), 400
+
+    crop_name = str(data.get('crop_name') or 'Not specified').strip()
+    language = 'Marathi first, followed by English' if data.get('language', 'mr') == 'mr' else 'English'
+    context = data.get('context') or {}
+    prompt = f"""
+You are KrishiAdvisor, a careful agricultural assistant for a Maharashtra farmer.
+Answer in {language}. Give practical steps suitable for a small or medium farm.
+Do not claim live weather, market, pesticide approval, or disease diagnosis.
+For chemical, disease, legal, or emergency questions, recommend confirming with
+an agriculture officer, soil lab, or qualified agronomist. Do not recommend
+unsafe chemical combinations or unsupported dosages.
+
+Crop: {crop_name}
+Farmer context: {json.dumps(context, ensure_ascii=False)}
+Question: {question}
+
+Return exactly these sections:
+1. थोडक्यात उत्तर / Short answer
+2. आजची कृती / What to do today
+3. पुढील 7 दिवस / Next 7 days
+4. काळजी / Safety and verification
+"""
+    payload = json.dumps({
+        'model': os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'messages': [
+            {'role': 'system', 'content': 'You provide safe, evidence-aware farm guidance.'},
+            {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 0.25,
+        'max_tokens': 850
+    }).encode('utf-8')
+    req = urllib.request.Request(
+        'https://api.groq.com/openai/v1/chat/completions',
+        data=payload,
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+        advice = result['choices'][0]['message']['content']
+        return jsonify({'advice': advice, 'model': result.get('model')})
+    except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError) as exc:
+        return jsonify({'error': f'AI farm help request failed: {exc}'}), 502
+
+
 @app.route('/api/crops')
 def api_crops():
     crops = get_all_crops()
     return jsonify([dict(c) for c in crops])
+
+
+@app.route('/api/dashboard')
+@login_required
+def api_dashboard():
+    uid = session['user_id']
+    conn = get_db()
+    stats = {
+        'total_sales': conn.execute(
+            'SELECT COALESCE(SUM(total_amount),0) AS value FROM sales WHERE user_id=?',
+            (uid,)
+        ).fetchone()['value'],
+        'total_profit': conn.execute(
+            'SELECT COALESCE(SUM(profit),0) AS value FROM sales WHERE user_id=?',
+            (uid,)
+        ).fetchone()['value'],
+        'active_stock': conn.execute(
+            'SELECT COUNT(*) AS value FROM stock WHERE user_id=? AND status="stored"',
+            (uid,)
+        ).fetchone()['value'],
+        'prediction_count': conn.execute(
+            'SELECT COUNT(*) AS value FROM predictions WHERE user_id=?',
+            (uid,)
+        ).fetchone()['value'],
+        'total_expenses': conn.execute(
+            'SELECT COALESCE(SUM(amount),0) AS value FROM farm_expenses WHERE user_id=?',
+            (uid,)
+        ).fetchone()['value'],
+    }
+    recent_sales = conn.execute('''
+        SELECT s.id, s.quantity_kg, s.sale_price, s.total_amount, s.profit,
+               s.sale_date, c.name_en, c.name_mr
+        FROM sales s JOIN crops c ON s.crop_id=c.id
+        WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 5
+    ''', (uid,)).fetchall()
+    conn.close()
+    return jsonify({
+        'user': dict(get_current_user()),
+        'stats': {key: round(float(value or 0), 2) for key, value in stats.items()},
+        'recent_sales': [dict(row) for row in recent_sales]
+    })
+
+
+@app.route('/api/planner', methods=['GET', 'POST'])
+@login_required
+def api_planner():
+    uid = session['user_id']
+    conn = get_db()
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        try:
+            crop_id = int(data.get('crop_id') or 0)
+            area = float(data.get('area_acres') or 0)
+            if crop_id <= 0 or area <= 0:
+                raise ValueError('Crop and positive area are required')
+            conn.execute('''
+                INSERT INTO farm_plans
+                (user_id,crop_id,area_acres,sowing_date,expected_harvest,
+                 irrigation_plan,soil_type,notes)
+                VALUES (?,?,?,?,?,?,?,?)
+            ''', (uid, crop_id, area, data.get('sowing_date', ''),
+                  data.get('expected_harvest', ''), data.get('irrigation_plan', ''),
+                  data.get('soil_type', ''), data.get('notes', '')))
+            conn.commit()
+        except (ValueError, TypeError) as exc:
+            conn.close()
+            return jsonify({'error': str(exc)}), 400
+    rows = conn.execute('''
+        SELECT fp.*, c.name_en, c.name_mr FROM farm_plans fp
+        JOIN crops c ON fp.crop_id=c.id WHERE fp.user_id=?
+        ORDER BY COALESCE(fp.expected_harvest, fp.sowing_date) ASC
+    ''', (uid,)).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/planner/expenses', methods=['GET', 'POST'])
+@login_required
+def api_planner_expenses():
+    uid = session['user_id']
+    conn = get_db()
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        try:
+            amount = float(data.get('amount') or 0)
+            if amount <= 0:
+                raise ValueError('Amount must be greater than zero')
+            plan_id = data.get('plan_id') or None
+            if plan_id:
+                plan_id = int(plan_id)
+                owned = conn.execute(
+                    'SELECT id FROM farm_plans WHERE id=? AND user_id=?',
+                    (plan_id, uid)
+                ).fetchone()
+                if not owned:
+                    raise ValueError('Invalid crop plan')
+            conn.execute('''
+                INSERT INTO farm_expenses
+                (user_id,plan_id,category,amount,expense_date,notes)
+                VALUES (?,?,?,?,?,?)
+            ''', (uid, plan_id, str(data.get('category') or 'Other').strip() or 'Other',
+                  amount, str(data.get('expense_date') or '').strip(),
+                  str(data.get('notes') or '').strip()))
+            conn.commit()
+        except (ValueError, TypeError) as exc:
+            conn.close()
+            return jsonify({'error': str(exc)}), 400
+
+    rows = conn.execute('''
+        SELECT fe.*, c.name_en, c.name_mr
+        FROM farm_expenses fe
+        LEFT JOIN farm_plans fp ON fe.plan_id=fp.id
+        LEFT JOIN crops c ON fp.crop_id=c.id
+        WHERE fe.user_id=?
+        ORDER BY COALESCE(fe.expense_date, fe.created_at) DESC
+        LIMIT 50
+    ''', (uid,)).fetchall()
+    total = conn.execute(
+        'SELECT COALESCE(SUM(amount),0) AS total FROM farm_expenses WHERE user_id=?',
+        (uid,)
+    ).fetchone()['total']
+    conn.close()
+    return jsonify({
+        'expenses': [dict(row) for row in rows],
+        'total': round(float(total or 0), 2)
+    })
+
+
+@app.route('/api/stock')
+@login_required
+def api_stock():
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT st.*, c.name_en, c.name_mr, c.category FROM stock st
+        JOIN crops c ON st.crop_id=c.id WHERE st.user_id=?
+        ORDER BY st.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/sales')
+@login_required
+def api_sales():
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT s.*, c.name_en, c.name_mr FROM sales s
+        JOIN crops c ON s.crop_id=c.id WHERE s.user_id=?
+        ORDER BY s.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/profile', methods=['GET', 'PUT'])
+@login_required
+def api_profile():
+    uid = session['user_id']
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+        conn = get_db()
+        conn.execute('''
+            UPDATE users SET name=?, village=?, district=?, lang=?
+            WHERE id=?
+        ''', (name, (data.get('village') or '').strip(),
+              (data.get('district') or '').strip(),
+              data.get('lang', 'mr'), uid))
+        conn.commit()
+        conn.close()
+        session['user_name'] = name
+
+    user = get_current_user()
+    return jsonify(dict(user))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -465,4 +927,3 @@ if __name__ == '__main__':
     print("  http://127.0.0.1:5000")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
-
